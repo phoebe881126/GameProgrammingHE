@@ -28,13 +28,14 @@
 
 <script>
 var clock;
-var renderer, scene, camera;
+var renderer, scene, camera,skyboxGeo,skybox;
 var train;
 //var cube;
 //var chimney;
 var angle = 0;  // initialization IMPORTANT!
 var turn = false;
 var Radius = 16;
+var b=0;
 // make angle & turn 'static'
 
 init();
@@ -95,56 +96,32 @@ function makeTrack(){
 	var track = new THREE.Group();
 	
 	track1 = new THREE.Mesh(new THREE.TorusGeometry(15, 0.1, 4, 100), new THREE.MeshNormalMaterial());//軌道內側
+
 	track1.rotateX(Math.PI/2);//繞x軸旋轉π/2 原文網址：https://itw01.com/UJQS7E4.html
 	
 	track2 = new THREE.Mesh(new THREE.TorusGeometry(17, 0.1, 4, 100), new THREE.MeshNormalMaterial());//軌道外側
 	track2.rotateX(Math.PI/2);//繞x軸旋轉π/2 原文網址：https://itw01.com/UJQS7E4.html
 	
 	
-	//track3 = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,2,20), new THREE.MeshNormalMaterial());//軌道中間
 					
 	
-	if (turn) angle += Math.PI/30*dt*2;
-
-	track3 = new THREE.Mesh(new THREE.BoxGeometry (2.6,0.2,0.7), new THREE.MeshNormalMaterial());//軌道中間
-	//track3.rotateX(Math.PI/2+angle);
-	//track3.rotateZ(Math.PI/2+angle);
-	track3.position.set(Radius*Math.cos(angle), -0.1, -Radius*Math.sin(angle));
-	
-	track4 = new THREE.Mesh(new THREE.BoxGeometry (2.6,0.2,0.7), new THREE.MeshNormalMaterial());//軌道中間
-	track4.position.set(Radius*Math.cos(angle+Math.PI), -0.1, -Radius*Math.sin(angle+Math.PI));
 
 	
-/*
-	var points = [];
-	var theta=0;
-	for(var i=0;i<100;i++){
-		var dt = clock.getDelta();
-
-		theta=i*Math.PI*2/100;
-		if (turn) angle += Math.PI/30*dt*2;
-
-		var	track3 = new THREE.Mesh(new THREE.BoxGeometry (2.6,0.2,0.7), new THREE.MeshNormalMaterial());//軌道中間
-		//track3.rotateX(Math.PI/2+angle);
-		//track3.rotateZ(Math.PI/2+angle);
-		track3.position.set(Radius*Math.cos(angle), -0.1, -Radius*Math.sin(angle));
-		var point = new THREE.Vector4(0, 1, 0, 0);
-		points.push(point);
-	}*/
+	var dt = clock.getDelta();
 	
-	//var points = [];
-	//var theta=0;
-	//for(var i=0;i<100;i++){
-		//theta=i*Math.PI*2/100;
-		//var point = new THREE.Vector3(15*Math.cos(theta),0,15*Math.sin(theta));
-		//points.push(point);
-	//}
 	
-	//var geom = new THREE.BufferGeometry().setFromPoints(points);
-	//var line = new THREE.Line(geom, new THREE.LineBasicMaterial({color:0xff0000}));
+	for(var i=0;i<360;i+=8){
+	b = i*Math.PI/180;
+	track5 = new THREE.Mesh(new THREE.BoxGeometry (2.6,0.2,0.7), new THREE.MeshNormalMaterial());//軌道中間
+
+	track5.position.set(Radius*Math.cos(b), -0.1, -Radius*Math.sin(b));
+	
+	track5.rotation.y = b+Math.PI;
+	track.add(track5);
+	}
 	
 
-	track.add(track1,track2,track3,track4);
+	track.add(track1,track2);
 	return track;
 
 }
@@ -161,11 +138,13 @@ function init () {
 	
 	renderer.setClearColor (0x888888);
 	
+	
 	scene = new THREE.Scene();
 	var grid = new THREE.GridHelper(40,40, 0xaaaa00, 0x333333);
 	scene.add (grid);
 	var axes = new THREE.AxesHelper (5);
 	scene.add (axes);
+	
 	
 	camera = new THREE.PerspectiveCamera (35, width/height, 1, 100);
 	camera.position.y = 16;
