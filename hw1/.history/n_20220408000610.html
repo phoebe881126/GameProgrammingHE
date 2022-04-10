@@ -1,0 +1,317 @@
+<html>
+<head>
+<style>
+#info {
+  position: absolute;
+  width: 100vw;
+  text-align: center;
+}
+
+body {
+  overflow: hidden;
+}
+
+
+</style>
+<body>
+<div id="info">
+	<h1 style='color:black'>Game Physics </h1>
+
+</div>
+<audio id="collisionsound" style="display:none">
+<source src="https://jyunming-chen.github.io/game3js/gameHWhelpers/sounds/collision3.wav" type='audio/wav'>
+</audio>
+
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.min.js"></script>
+
+<script type ="module">
+javascript:(function(){var script=document.createElement('script');script.onload=function(){var stats=new Stats();document.body.appendChild(stats.dom);requestAnimationFrame(function loop(){stats.update();requestAnimationFrame(loop)});};script.src='https://mrdoob.github.io/stats.js/build/stats.min.js';document.head.appendChild(script);})()
+
+
+import { OrbitControls } from 'https://unpkg.com/three/examples/jsm/controls/OrbitControls.js';
+import { MTLLoader } from 'https://unpkg.com/three/examples/jsm/loaders/MTLLoader.js';
+import { OBJLoader } from 'https://unpkg.com/three/examples/jsm/loaders/OBJLoader.js';
+
+
+
+var camera,scene,renderer,controls;
+var light,light2,light3,light4,light5,lights = [];
+var puck = [];
+var wall = [];
+var angle = 0;
+
+const R = 10;
+
+class Puck {
+	constructor (pos, vel, mesh) {
+    this.pos = pos;
+    this.vel = vel;
+    this.force = new THREE.Vector3(0,0,0);
+	this.mesh = mesh;
+    scene.add (this.mesh);
+	this.mesh.rotation.y = Math.PI/2;
+
+
+
+    mesh.material.color = new THREE.Color().setHSL (Math.random(), 0.5,0.7);
+   }
+
+   update(dt) {
+  	this.vel.add (this.force.clone().multiplyScalar (dt));
+  	this.pos.add (this.vel.clone().multiplyScalar (dt));
+
+	// wall-collision
+	if (this.pos.z < -100+R) {
+		this.vel.z = - this.vel.z;
+
+		this.pos.z = -100+R;
+		collisionsound.play();
+	}
+	if (this.pos.z > 100-R) {
+		this.vel.z = - this.vel.z;
+
+		this.pos.z = 100-R;
+		collisionsound.play();
+	}
+	if (this.pos.x > 100-R) {
+		this.vel.x = - this.vel.x;
+
+		this.pos.x = 100-R;
+		collisionsound.play();
+	}
+	if (this.pos.x < -100+R) {
+		this.vel.x = - this.vel.x;
+
+		this.pos.x = -100+R;
+		collisionsound.play();
+	}
+
+		this.mesh.position.copy (this.pos);
+
+	}
+}
+function buildPuckMesh (mycolor) {
+	let puckMesh = new THREE.Mesh (new THREE.CylinderGeometry(R,R,4,20), new THREE.MeshPhongMaterial());
+	puckMesh.material.color = mycolor;
+	return puckMesh;
+}
+
+class Wall {
+	constructor (pos,mesh,rot){
+		this.pos = pos;
+		this.mesh = mesh;
+		this.rot = rot;
+		scene.add (this.mesh);
+
+		this.mesh.rotation.y = this.rot;
+		mesh.position.copy(this.pos);
+
+		//this.Pos.position.y = 20;
+
+
+	}
+
+}
+
+
+function buildWallMesh (Mycolor) {
+	let wallMesh = new THREE.Mesh (new THREE.BoxGeometry(200,40,10), new THREE.MeshPhongMaterial({color: 0xc0c0c0, transparent: true, opacity:0.2}));
+	wallMesh.material.color = Mycolor;
+	return wallMesh;
+}
+
+
+
+init();
+animate();
+
+function init() {
+
+  scene = new THREE.Scene();
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0xb0c4de);
+  document.body.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.set (0,400,500);
+  let controls = new OrbitControls(camera, renderer.domElement);
+
+  //燈光(白光)
+  var pointLight = new THREE.PointLight(0xffffff);
+  pointLight.position.set(200,200,-100);
+  scene.add (pointLight);
+  //暗光
+  var ambientLight = new THREE.AmbientLight(0x000000);
+  scene.add(ambientLight);
+
+  var axes = new THREE.AxesHelper(20);
+  scene.add(axes);
+
+  //var floorMat = new THREE.MeshPhongMaterial({color: "pink", transparent: true, opacity: 0.4});
+
+  var floor = new THREE.Mesh(new THREE.BoxGeometry(200,200,10),new THREE.MeshPhongMaterial({color: 0x696969, transparent: true, opacity: 0.8}));
+
+  floor.rotation.x = -Math.PI/2;
+  scene.add(floor);
+
+  //透明牆壁
+
+  let wallMesh = buildWallMesh ();
+
+  let wall1 = new Wall (new THREE.Vector3(0,20,-100),wallMesh,0);
+  wall.push(wall1);
+
+  wallMesh = buildWallMesh ();
+  let wall2 = new Wall (new THREE.Vector3(100,20,0),wallMesh,Math.PI/2);
+  //wall2.rot.y = Math.PI/2;
+  wall.push(wall2);
+
+  wallMesh = buildWallMesh ();
+  let wall3 = new Wall (new THREE.Vector3(-100,20,0),wallMesh,-Math.PI/2);
+  //wall3.rotation.y = Math.PI/2;
+  wall.push(wall3);
+
+  wallMesh = buildWallMesh ();
+  let wall4 = new Wall (new THREE.Vector3(0,20,100),wallMesh,0);
+  wall.push(wall4);
+
+
+
+////////////// puck1
+  let puckMesh = buildPuckMesh (new THREE.Color().setHSL (Math.random(), .9, .4));
+
+  let puck1 = new Puck (new THREE.Vector3(-100,10,100), new THREE.Vector3(10,0,-10), puckMesh);
+
+  puck.push (puck1);
+
+////////////// puck2
+  puckMesh = buildPuckMesh (new THREE.Color().setHSL (Math.random(), .9, .4));
+
+  let puck2 = new Puck (new THREE.Vector3(100,10,100), new THREE.Vector3(-10,0,-10), puckMesh);
+
+  puck.push (puck2);
+
+////////////// puck3
+  puckMesh = buildPuckMesh (new THREE.Color().setHSL (Math.random(), .9, .4));
+
+  let puck3 = new Puck (new THREE.Vector3(30,10,-10), new THREE.Vector3(10,0,10), puckMesh);
+
+  puck.push (puck3);
+
+////////////// puck4
+  puckMesh = buildPuckMesh (new THREE.Color().setHSL (Math.random(), .9, .4));
+
+  let puck4 = new Puck (new THREE.Vector3(-50,10,10), new THREE.Vector3(-10,0,10), puckMesh);
+
+  puck.push (puck4);
+
+////////////// puck5
+  puckMesh = buildPuckMesh (new THREE.Color().setHSL (Math.random(), .9, .4));
+
+  let puck5 = new Puck (new THREE.Vector3(10,10,50), new THREE.Vector3(0,0,10), puckMesh);
+
+  puck.push (puck5);
+
+
+
+////////////////////// puck
+  light = new THREE.PointLight(0xffffff,0.6);
+  scene.add(light);
+
+  //讓燈光與puck一樣的顏色
+  light.color.copy(puck[0].mesh.material.color);
+
+///////////////////// puck2 粉//////////////////////////
+  light2 = new THREE.PointLight(0xffffff,0.6);
+  scene.add(light2);
+
+  light2.color.copy(puck[1].mesh.material.color);
+
+
+  light3 = new THREE.PointLight(0xffffff,0.6);
+  scene.add(light3);
+
+  light3.color.copy(puck[2].mesh.material.color);
+
+  light4 = new THREE.PointLight(0xffffff,0.6);
+  scene.add(light4);
+
+  light4.color.copy(puck[3].mesh.material.color);
+
+  light5 = new THREE.PointLight(0xffffff,0.6);
+  scene.add(light5);
+
+  light5.color.copy(puck[4].mesh.material.color);
+}
+
+function animate() {
+
+	light.position.copy(puck[0].pos);
+	light.position.y +=12;
+
+	light2.position.copy(puck[1].pos);
+	light.position.y +=12;
+
+	light3.position.copy(puck[2].pos);
+	light.position.y +=12;
+
+	light4.position.copy(puck[3].pos);
+	light.position.y +=12;
+
+	light5.position.copy(puck[4].pos);
+	light.position.y +=12;
+
+
+	//碰撞
+
+	for(let i=0;i<puck.length;i++){
+		for(let j = i+1;j < puck.length;j++){
+			let test = Math.sqrt(Math.pow(puck[i].pos.x - puck[j].pos.x, 2) + Math.pow(puck[i].pos.z - puck[j].pos.z, 2)) ;
+			let collisionX = (puck[i].pos.x - puck[j].pos.x)/test;
+			let collisionZ = (puck[i].pos.z - puck[j].pos.z)/test;
+
+			let collision_puck1_x = Math.pow(collisionX, 2) * puck[i].vel.x + collisionX * collisionZ * puck[i].vel.z;
+			let collision_puck1_z = collisionX * collisionZ*puck[i].vel.x + Math.pow(collisionZ,2)*puck[i].vel.z;
+
+			let collision_puck2_x = Math.pow(collisionX,2)*puck[j].vel.x+collisionX*collisionZ*puck[j].vel.z;
+			let collision_puck2_z = collisionX * collisionZ*puck[j].vel.x + Math.pow(collisionZ,2)*puck[j].vel.z;
+
+			if(test<2*R){
+				puck[i].vel.x = (collision_puck2_x + (puck[i].vel.x - collision_puck1_x));
+				puck[i].vel.z = (collision_puck2_z + (puck[i].vel.z - collision_puck1_z));
+				collisionsound.play();
+
+				puck[j].vel.x = (collision_puck1_x + (puck[j].vel.x - collision_puck2_x));
+				puck[j].vel.z = (collision_puck1_z + (puck[j].vel.z - collision_puck2_z));
+				collisionsound.play();
+			}
+
+		}
+	}
+
+	requestAnimationFrame(animate);
+	render();
+
+	var dt = 0.1;
+	for (let i = 0; i < puck.length; i++){
+
+		puck[i].update (dt);
+
+
+	}
+
+}
+
+function render() {
+
+  renderer.render(scene, camera);
+
+}
+</script>
+</body>
+
+
+</html>

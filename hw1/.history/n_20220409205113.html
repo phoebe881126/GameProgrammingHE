@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+<style>
+
+#info {
+  position: absolute;
+  top: 0px;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+body {
+  overflow: hidden;
+}
+
+</style>
+</head>
+
+<body>
+
+
+
+<audio id="collisionsound" style="display:none">
+<source src="https://bbrr0704.github.io/GameProgrammingHW/sound/collision3.wav" type='audio/wav'>
+</audio>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/104/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/stats.js/r16/Stats.min.js"></script>
+<script src="https://threejs.org/build/three.min.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js">
+</script>
+
+
+<script>
+
+var collsound = document.getElementById ('collisionsound');
+var camera, scene, renderer;
+var rad = 10 , R = 7;
+var balls = [];
+var d,t;
+
+var v1 = new THREE.Vector3(0,0,0);
+var v2 = new THREE.Vector3(0,0,0);
+
+
+class Wall {
+
+    constructor(length,width,height) {
+        this.length = length;
+        this.width = width;
+        this.height = height;
+    }
+
+    Create(){
+
+      this.model = new THREE.Mesh (new THREE.BoxGeometry(this.length,this.width,
+   		this.height), new THREE.MeshPhongMaterial({color:"gray", transparent: true,
+   		opacity:0.4}));
+ 	 		scene.add (this.model);
+
+    }
+
+
+}
+
+class Disc {
+
+    constructor(pos , vel , color) {
+        this.pos = pos;
+        this.vel = vel;
+        this.color = color;
+    }
+
+
+    Create(){
+
+    	this.whole = new THREE.Group();
+
+      this.light = new THREE.PointLight( this.color, 0.5);
+			this.light.position.set( 0, 20, 0);
+			this.whole.add( this.light );
+
+      this.puckMat = new THREE.MeshBasicMaterial();
+  	 	this.puckMat.color = new THREE.Color(this.color);
+
+  	 	this.model = new THREE.Mesh (new THREE.CylinderGeometry(rad,rad,3,20),
+      	this.puckMat);
+
+      this.whole.add (this.model);
+
+   		this.light.color.copy (this.puckMat.color);
+
+      scene.add(this.whole);
+
+     this.force = new THREE.Vector3(0,0,0);
+
+
+    }
+
+    update(dt) {
+  	this.vel.add (this.force.clone().multiplyScalar (dt));
+  	this.pos.add (this.vel.clone().multiplyScalar (dt));
+
+    // wall-collision
+  if (this.pos.z > 150-R) {
+  	 this.vel.z = - this.vel.z;
+
+     this.pos.z =  150-R;
+
+	     collsound.play();
+
+  }
+  if (this.pos.z < -150+R) {
+  	 this.vel.z = - this.vel.z;
+
+     this.pos.z = -150+R;
+
+	     collsound.play();
+
+  }
+  if (this.pos.x > 150-R) {
+  	 this.vel.x = - this.vel.x;
+
+     this.pos.x = 150-R;
+
+	     collsound.play();
+
+  }
+ if (this.pos.x < -150+R) {
+  	 this.vel.x = - this.vel.x;
+
+     this.pos.x = -150+R;
+
+	     collsound.play();
+
+  }
+
+	this.whole.position.copy (this.pos);
+
+   }
+
+
+
+  }
+
+
+
+init();
+animate();
+
+
+
+function init() {
+
+  scene = new THREE.Scene();
+
+  renderer = new THREE.WebGLRenderer();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.set(200,300,200);
+
+  let controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  ////////////////////////////////////////////////////////////////
+
+  var floor = new THREE.Mesh (new THREE.PlaneGeometry(300,300),
+  	new THREE.MeshPhongMaterial());
+ 	scene.add (floor);
+  floor.rotation.x = -(Math.PI/2) ;
+
+  var wall0 = new Wall(300,40,5);
+  var wall1 = new Wall(300,40,5);
+  var wall2 = new Wall(310,40,5);
+  var wall3 = new Wall(310,40,5);
+
+  wall0.Create();
+  wall1.Create();
+  wall2.Create();
+  wall3.Create();
+
+  wall0.model.position.set(152.5,20,0);
+  wall1.model.position.set(-152.5,20,0);
+  wall2.model.position.set(0,20,152.5);
+  wall3.model.position.set(0,20,-152.5);
+
+  wall0.model.rotation.y = (1/2)*Math.PI;
+  wall1.model.rotation.y = (1/2)*Math.PI;
+
+  var D1 = new Disc( new THREE.Vector3(50,0,100), new THREE.Vector3(5,0,15) ,"red");
+  D1.Create();
+  balls.push(D1);
+  var D2 = new Disc( new THREE.Vector3(0,0,0), new THREE.Vector3(13,0,2) ,"white");
+  D2.Create();
+  balls.push(D2);
+  var D3 = new Disc( new THREE.Vector3(100,0,50), new THREE.Vector3(6,0,0) ,"blue");
+  D3.Create();
+  balls.push(D3);
+  var D4 = new Disc( new THREE.Vector3(60,0,-50), new THREE.Vector3(9,0,11) ,"purple");
+  D4.Create();
+  balls.push(D4);
+  var D5 = new Disc( new THREE.Vector3(-90,0,-60), new THREE.Vector3(0,0,13) ,"yellow");
+  D5.Create();
+  balls.push(D5);
+
+  var light1 = new THREE.AmbientLight( "black" , 0.2 );
+	scene.add( light1 );
+	light1.position.set(30,10,70);
+  var light2 = new THREE.PointLight( "green", 1);
+  scene.add( light2 );
+  light2.position.set(90 , 20 , -50);
+
+
+}
+
+
+function animate() {
+
+  requestAnimationFrame(animate);
+  render();
+
+  var dt = 0.1;
+
+  for (let i = 0; i < balls.length; i++)
+  	balls[i].update (dt);
+
+   coll(balls[0],balls[1]);
+   coll(balls[0],balls[2]);
+   coll(balls[0],balls[3]);
+   coll(balls[0],balls[4]);
+   coll(balls[1],balls[2]);
+   coll(balls[1],balls[3]);
+   coll(balls[1],balls[4]);
+   coll(balls[2],balls[3]);
+   coll(balls[2],balls[4]);
+   coll(balls[3],balls[4]);
+
+}
+
+function render() {
+
+  renderer.render(scene, camera);
+
+}
+
+function coll(ball1,ball2)
+{
+
+
+
+	if( ball1.pos.distanceTo(ball2.pos) <= rad*2 )
+  {
+
+  	v1.copy(ball1.vel);
+  	v2.copy(ball2.vel);
+
+  	d = 2*rad - ball1.pos.distanceTo(ball2.pos);
+  	t = ( ball2.pos.clone().sub(ball1.pos) ).normalize();
+
+	ball1.pos.copy(ball1.pos.clone().sub(t.multiplyScalar(d/2) ) );
+	ball2.pos.copy(ball2.pos.clone().add(t.multiplyScalar(d/2) ) );
+
+    ball1.whole.position.copy(ball1.pos);
+    ball2.whole.position.copy(ball2.pos);
+
+  ball1.vel.copy(
+   ball1.vel.clone().sub(
+
+    ball1.pos.clone().sub( ball2.pos ).multiplyScalar(
+  ( ball1.vel.clone().sub( v2 ) )
+ .dot(  ball1.pos.clone().sub( ball2.pos ).normalize().multiplyScalar( rad*2 ))
+  / 400)
+  ) );
+
+ ball2.vel.copy(
+   ball2.vel.clone().sub(
+
+    ball2.pos.clone().sub( ball1.pos ).multiplyScalar(
+  ( ball2.vel.clone().sub( v1 ) )
+ .dot(  ball2.pos.clone().sub( ball1.pos ).normalize().multiplyScalar( rad*2 ))
+  / 400)
+  ) );
+
+
+
+    collsound.play();
+
+
+  }
+
+}
+
+
+
+
+
+</script>
+</body>
+
+</html>
