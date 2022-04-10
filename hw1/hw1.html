@@ -59,7 +59,7 @@
             constructor(pos, vel, mesh) {
                 this.pos = pos;//位置
                 this.vel = vel;//速度(Velocity)
-                this.force = new THREE.Vector3(2, 0, 4);//力量
+                this.force = new THREE.Vector3(2, 0, 3);//力量
                 this.mesh = mesh;
 
                 scene.add(this.mesh);
@@ -225,9 +225,9 @@
             for (let i = 0; i < balls.length; i++) {//每個球的碰撞
                 for (let j = i + 1; j < balls.length; j++) {
                     let hit = balls[i].pos.distanceTo(balls[j].pos);//距離
-                    if (hit <= 2 * R) {//當兩點距離小於兩個半徑，則為重疊//撞在一起的條件-兩個球的半徑
-                        ballsound.play();
 
+                    if (hit <= 2 * R+0.1) {//當兩點距離小於兩個半徑，則為重疊//撞在一起的條件-兩個球的半徑
+                        ballsound.play();
                         // .add向量相加
                         // .divide将该向量除以向量v
                         // .divideScalar将该向量除以标量s。
@@ -252,6 +252,8 @@
 
                         balls[i].vel.add(num3);
                         balls[j].vel.add(num4);
+
+
                     }
                 }
             }
