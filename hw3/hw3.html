@@ -20,16 +20,70 @@
 </head>
 
 <body>
-    <div id="info">Minecraft Steve</div>
+    <div id="info">Applying Character Animation<br>
+        <button id="perspective" style="width:200PX">gyro camera</button>
+    </div>
     <script src="https://threejs.org/build/three.min.js"></script>
     <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+    <script src="https://threejs.org/examples/js/misc/Gyroscope.js"></script>
 
     <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
-
+    <script src="hw3_keframe.js"></script>
+    <script src="hw3_model.js"></script>
 
 
     <script>
+
         var camera, scene, renderer;
+        var keyboard = new KeyboardState();
+        var head, torso, leftArm, rightArm, leftFoot, rightFoot;
+        var state = 'Stand';
+        var firstIn = 0;
+        var h = 15, w = 5;
+        var pos = new THREE.Vector3();
+        var vel = new THREE.Vector3();
+        var force = new THREE.Vector3();
+        var power = 0, angle = 0;
+        var turn_perspective = false;
+        var cameraGyro;
+
+
+
+
+
+        $("#perspective").click(function () {
+            turn_perspective = !turn_perspective;
+            // change button name
+            if (turn_perspective)  // ... is turning
+                $("#perspective").text('上帝視角');
+            else {
+                $("#perspective").text('gyro camera');
+            }
+        });
+
+
+
+
+        var keyboard = new KeyboardState();
+
+        (function () {
+            Math.clamp = function (val, min, max) {
+                return Math.min(Math.max(val, min), max);
+            }
+        })();
+
+
+        var T = 0.4;
+        var clock = new THREE.Clock();
+        var ts = clock.getElapsedTime();
+
+
+        (function () {
+            Math.clamp = function (val, min, max) {
+                return Math.min(Math.max(val, min), max);
+            }
+        })();
 
 
 
@@ -37,7 +91,11 @@
         init();
         animate();
 
+
         function init() {
+
+            clock = new THREE.Clock();
+
 
             renderer = new THREE.WebGLRenderer({
                 antialias: true,
@@ -53,10 +111,85 @@
             camera.position.z = 120;
             camera.position.y = 100;
 
+            cameraGyro = new THREE.PerspectiveCamera(80, window.innerWidth / window.innerHeight, 1, 1000);////
+            cameraGyro.position.set(0, 20, 50); // in gyro frame
+
             let grid = new THREE.GridHelper(200, 20, "red", "white");
             let controls = new THREE.OrbitControls(camera, renderer.domElement);
+            let controls1 = new THREE.OrbitControls(cameraGyro, renderer.domElement);
+
+            controls.enableKeys = false;
+            controls1.enableKeys = false;
 
             scene.add(grid); //線網
+            render(camera);
+
+            /////////////////////////////////////////////////////////////////////////////////
+            power = 5.0;
+            angle = 0.0;
+
+            //照片
+            var loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('');
+            skin = loader.load('steve.png');
+
+
+            //軀幹
+            torso = makeBodyParts(w * 2, h, w, 0);
+            torso = skinTorso(w * 2, h, w, skin);//
+            torso.position.y = h + h / 2;
+            scene.add(torso);
+
+            //頭
+            head = makeBodyParts(w * 2, w * 2, w * 2, 0);
+            head = skinHead(w * 2, w * 2, w * 2, skin);//
+            head.position.y = h / 2 + w;
+            torso.add(head);
+
+            //左手
+            leftArm = makeBodyParts(w, h, w, -h / 2);
+            leftArm = skinLHand(w, h, w, skin);//
+            leftArm.position.x = -(w + w / 2);
+            leftArm.position.y = h / 2;
+            torso.add(leftArm);
+
+            //右手
+            rightArm = makeBodyParts(w, h, w, -h / 2);
+            rightArm = skinLHand(w, h, w, skin);//
+            rightArm.position.x = w + w / 2;
+            rightArm.position.y = h / 2;
+            torso.add(rightArm);
+
+            //左腳
+            leftFoot = makeBodyParts(w, h, w, -h / 2);
+            leftFoot = skinLLeg(w, h, w, skin);
+            leftFoot.position.y = -h / 2;
+            leftFoot.position.x = -w / 2;
+            torso.add(leftFoot);
+
+            //右腳
+            rightFoot = makeBodyParts(w, h, w, -h / 2);
+            rightFoot = skinLLeg(w, h, w, skin);
+            rightFoot.position.y = -h / 2;
+            rightFoot.position.x = w / 2;
+            torso.add(rightFoot);
+
+            //初始姿勢
+            // head.rotation.y = Math.PI / 6;
+            leftFoot.rotation.x = Math.PI / 6;
+            rightFoot.rotation.x = -Math.PI / 6;
+            leftArm.rotation.x = Math.PI / 6;
+            rightArm.rotation.x = -Math.PI / 6;
+
+
+            leftFoot.rotation.x = 0;
+            rightFoot.rotation.x = 0;
+            state = 'Stand';
+
+            // gyro setting
+            gyro = new THREE.Gyroscope();
+            torso.add(gyro);
+            gyro.add(cameraGyro);
 
 
 
@@ -70,15 +203,124 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
+        function makeBodyParts(x, y, z, upCenter) {
+            var oneLink = new THREE.Object3D();
+            var mesh = new THREE.Mesh(new THREE.BoxGeometry(x, y, z), new THREE.MeshNormalMaterial());
+            oneLink.add(mesh);
+            mesh.position.y = upCenter;//重要!!!才能從肩膀開始擺動
+
+            return oneLink;
+        }
+        function update(dt) {
+
+            //剛進來是站著
+            if (firstIn == 0)
+                power = 0;
+
+            keyboard.update();
+
+
+
+            if (keyboard.pressed("space")) {//控制走停
+                firstIn++;
+                if (state == 'Stand') {//初始從STAND開始
+                    ts = clock.getElapsedTime();
+                    state = 'S2W';
+                    power = 50;
+                } else if (state == 'Walk') {
+                    power = 0.1;
+                    ts = clock.getElapsedTime();
+                    poseW2S0.lThigh = intKey[0];
+                    poseW2S0.rThigh = intKey[1];
+                    state = 'W2S';
+                }
+            }
+
+            power = Math.clamp(power, 0, 100.0);
+            //把一个值限制在一个上限和下限之间，当这个值超过最小值和最大值的范围时，在最小值和最大值之间选择一个值使用
+
+            //前進速度控制
+            if (keyboard.pressed("up"))
+                power += 0.5;
+            if (keyboard.pressed("down"))
+                power -= 0.5;
+
+
+            //角推力
+            if (keyboard.pressed("left"))
+                angle += 0.01;
+            if (keyboard.pressed("right"))
+                angle -= 0.01;
+
+            // 算力
+            var thrust = new THREE.Vector3(1, 0, 0).multiplyScalar(power).applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+            force.copy(thrust);
+            force.add(vel.clone().multiplyScalar(-2))
+
+
+            vel.add(force.clone().multiplyScalar(dt));
+            pos.add(vel.clone().multiplyScalar(dt));
+        }
+        function makeCameraHelper() {
+            var cameraModel = new THREE.Group();
+            var body = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 3), new THREE.MeshNormalMaterial());
+            cameraModel.add(body);
+
+            return cameraModel;
+        }
 
         function animate() {
+
+            var dt = clock.getDelta();
+            update(dt);
+
+
+            // turn_perspective 切換視角
+
+            if (turn_perspective) {
+
+                cameraGyro.lookAt(torso.position);
+
+                render(cameraGyro);
+            }
+            if (!turn_perspective) {
+                // camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+
+                // camera.position.set(0, 150, 200);
+
+                // let controls = new THREE.OrbitControls(camera, renderer.domElement);
+                render(camera);
+                // console.log('camera');
+            }
+
+            // torso update
+            torso.position.copy(pos);
+            torso.position.y = h + w + w / 2;
+            torso.rotation.y = angle + Math.PI / 2;
+
+            switch (state) {
+                case 'Stand':
+                    intKey = keyframeStand(clock.getElapsedTime(), KeyStand);
+                    break;
+                case 'S2W':
+                    intKey = keyframeS2W(clock.getElapsedTime(), KeyS2W);
+                    break;
+                case 'W2S':
+                    intKey = keyframeW2S(clock.getElapsedTime(), KeyW2S);
+                    break;
+                case 'Walk':
+                    intKey = keyframeWalk(clock.getElapsedTime(), KeyWalk);
+                    break;
+            }
+
+
             requestAnimationFrame(animate);
-            render();
+            // render(camera);
 
 
         }
 
-        function render() {
+        function render(camera) {
             renderer.render(scene, camera);
         }
     </script>
