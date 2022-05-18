@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <style>
+        #info {
+            position: absolute;
+            top: 0px;
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+            color: #fdeb71;
+            font-size: xx-large;
+        }
+
+        body {
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+
+    <script src="https://threejs.org/build/three.min.js"></script>
+    <script src="https://threejs.org/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+    <script src="https://threejs.org/examples/js/misc/Gyroscope.js"></script>
+    <script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/MTLLoader.js"></script>
+    <script src="https://raw.githack.com/mrdoob/three.js/dev/examples/js/loaders/OBJLoader.js"></script>
+
+
+    <script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+    <script src="model.js"></script>
+    <script src="objloader.js"></script>
+    <script>
+        // from Three.JS Installation note:
+        // https://threejs.org/docs/#manual/en/introduction/Installation
+        // also, Q&A from discourse.threejs.org
+        // https://discourse.threejs.org/t/failed-installation-from-cdn/35227
+
+        //import * as THREE from 'https://cdn.skypack.dev/three@0.136';
+        //import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136/examples/jsm/controls/OrbitControls.js';
+
+        function clamp(val, min, max) { // min <= val <= max
+            return Math.min(Math.max(val, min), max);
+        }
+
+        class Agent {
+            constructor(pos, group) {
+                this.pos = pos.clone();
+                this.vel = new THREE.Vector3();
+                this.force = new THREE.Vector3();
+                this.target = null;
+                this.size = 3;
+                this.model = group;
+                scene.add(group);
+
+                this.MAXSPEED = 80;
+                this.ARRIVAL_R = 30;
+
+                // for orientable agent
+                this.angle = 0;
+            }
+
+            update(dt) {
+                this.accumulateForce();
+                this.vel.add(this.force.clone().multiplyScalar(dt));
+
+                // ARRIVAL: velocity modulation
+                if (this.target !== null) {
+                    let dst = this.target.distanceTo(this.pos);
+                    if (dst < this.ARRIVAL_R) {  // close enough
+                        this.vel.setLength(dst);
+                    }
+                }
+
+                // MAXSPEED modulation
+                let speed = this.vel.length();
+                this.vel.setLength(clamp(speed, 0, this.MAXSPEED));
+                this.pos.add(this.vel.clone().multiplyScalar(dt));
+                this.model.position.copy(this.pos);
+
+                // for orientable agent
+                // non PD version
+                if (this.vel.length() > 0.1) {
+                    this.angle = Math.atan2(-this.vel.z, this.vel.x)
+                    this.model.rotation.y = this.angle
+                }
+            }
+
+            setTarget(x, y, z) {
+                if (this.target !== null)
+                    this.target.set(x, y, z);
+                else {
+                    this.target = new THREE.Vector3(x, y, z);
+                }
+            }
+
+            targetInducedForce(targetPos) { // seek
+                return targetPos.clone().sub(this.pos).setLength(this.MAXSPEED).sub(this.vel);
+            }
+
+            accumulateForce() {
+                if (this.target)
+                    this.force.copy(this.targetInducedForce(this.target));
+            }
+
+        }
+
+
+        ////////////////////
+        var camera, scene, renderer, clock;
+        var raycaster;
+        var mouse = new THREE.Vector2();
+        var pickables = [];
+        var agent;
+        var targetMesh;
+        var Steve = new THREE.Group();
+        var head, torso, leftArm, rightArm, leftFoot, rightFoot;
+        var h = 15, w = 5;
+        var mouseX = 0, mouseY = 0;
+        var controls;
+        var theObject= new THREE.Object3D();;
+        var angle, power;
+        var keyboard = new KeyboardState();
+        var pos = new THREE.Vector3();
+        var vel = new THREE.Vector3();
+        var force = new THREE.Vector3();
+
+
+        (function () {
+            Math.clamp = function (val, min, max) {
+                return Math.min(Math.max(val, min), max);
+
+            }
+        })();
+
+        init();
+        animate();
+
+        function agentMesh() {//steve
+            // mesh facing +x
+
+            //照片
+            var loader = new THREE.TextureLoader();
+            loader.setCrossOrigin('');
+            // skin = loader.load('steve.png');//放到github上會沒東西
+            skin = loader.load('https://i.imgur.com/MyG79Ei.png');
+
+
+            //軀幹
+            torso = makeBodyParts(w * 2, h, w, 0);
+            torso = skinTorso(w * 2, h, w, skin);//
+            torso.position.y = h + h / 2;
+
+            scene.add(torso);
+
+            //頭
+            head = makeBodyParts(w * 2, w * 2, w * 2, 0);
+            head = skinHead(w * 2, w * 2, w * 2, skin);//
+            head.position.y = h / 2 + w;
+            torso.add(head);
+
+            //左手
+            leftArm = makeBodyParts(w, h, w, -h / 2);
+            leftArm = skinLHand(w, h, w, skin);//
+            leftArm.position.x = -(w + w / 2);
+            leftArm.position.y = h / 2;
+            torso.add(leftArm);
+
+            //右手
+            rightArm = makeBodyParts(w, h, w, -h / 2);
+            rightArm = skinLHand(w, h, w, skin);//
+            rightArm.position.x = w + w / 2;
+            rightArm.position.y = h / 2;
+            torso.add(rightArm);
+
+            //左腳
+            leftFoot = makeBodyParts(w, h, w, -h / 2);
+            leftFoot = skinLLeg(w, h, w, skin);
+            leftFoot.position.y = -h / 2;
+            leftFoot.position.x = -w / 2;
+            torso.add(leftFoot);
+
+            //右腳
+            rightFoot = makeBodyParts(w, h, w, -h / 2);
+            rightFoot = skinLLeg(w, h, w, skin);
+            rightFoot.position.y = -h / 2;
+            rightFoot.position.x = w / 2;
+            torso.add(rightFoot);
+
+            Steve.add(torso);
+        }
+
+        function init() {
+
+            clock = new THREE.Clock();
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 1000);
+            camera.position.z = 120;
+            camera.position.y = 100;
+
+            var gridXZ = new THREE.GridHelper(1000, 100, 'red', 'white');
+            scene.add(gridXZ);
+
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x888888);
+
+            let controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+            document.body.appendChild(renderer.domElement);
+
+            /////////////////////////////
+            angle = 0.0;
+            power = 5.0;
+
+            /////////////////////////////////////////////////////////////////////這邊可以調整steve可以走到的範圍
+            let plane = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshBasicMaterial({
+                transparent: true,
+                opacity: 0.5,
+                visible: true
+            }));
+
+            scene.add(plane);
+            // plane.material.visible = false
+            plane.rotation.x = -Math.PI / 2;
+            pickables = [plane];
+
+            let loader = new THREE.TextureLoader();
+            let tex = loader.load("https://i.imgur.com/GmthNU8.png");//bus的位置
+            targetMesh = new THREE.Mesh(new THREE.CircleGeometry(10, 20), new THREE.MeshBasicMaterial({
+                map: tex,
+                transparent: true
+            }));
+            // scene.add(targetMesh);
+            targetMesh.rotation.x = -Math.PI / 2
+
+            raycaster = new THREE.Raycaster();
+            document.addEventListener('pointerdown', onDocumentMouseDown, false);
+            ////////////////////////
+            let mesh = agentMesh();
+            agent = new Agent(new THREE.Vector3(-100 + 200 * Math.random() + Math.PI / 2, 0, -100 + 200 * Math.random()), Steve);
+            //////////////////////
+            light();
+            readModel();
+
+        }
+        function light() {
+            var directionalLight = new THREE.DirectionalLight(0xffffff);
+            directionalLight.position.set(0, 0, 1).normalize();
+            scene.add(directionalLight);
+
+            var pointLight = new THREE.PointLight(0xffffff);
+            pointLight.position.set(100, 200, -100);
+            scene.add(pointLight);
+        }
+
+        function onDocumentMouseDown(event) {
+
+            event.preventDefault();
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            // find intersections
+            raycaster.setFromCamera(mouse, camera);
+            var intersects = raycaster.intersectObjects(pickables);
+            if (intersects.length > 0) {
+                theObject.position.copy(intersects[0].point);
+                theObject.position.y += 32;
+                agent.setTarget(intersects[0].point.x + 80, intersects[0].point.y, intersects[0].point.z + 34);
+            }
+
+        }
+
+
+        function busUpdate(dt) {
+            keyboard.update();
+
+            if (vel.length() > 0) {
+                angle = 1.5 * Math.PI + Math.atan2(vel.x, vel.z);
+            }
+
+            if (keyboard.pressed("space"))
+                power = 0.0;
+            if (keyboard.pressed("up"))
+                power *= 1.2;
+            if (keyboard.pressed("down"))
+                power /= 1.2;
+
+            power = Math.clamp(power, 0, 80.0);
+
+
+            var angle_thrust = angle;
+            if (keyboard.pressed("left"))
+                angle_thrust += 0.3;
+            if (keyboard.pressed("right"))
+                angle_thrust -= 0.3;
+
+            // compute force
+            var thrust = new THREE.Vector3(1, 0, 0).multiplyScalar(power).applyAxisAngle(new THREE.Vector3(0, 1, 0), angle_thrust);
+            force.copy(thrust);
+            force.add(vel.clone().multiplyScalar(-2))
+
+            // eulers
+            vel.add(force.clone().multiplyScalar(dt));
+            theObject.position.add(vel.clone().multiplyScalar(dt));
+        }
+
+        function animate() {
+
+
+            let dt = clock.getDelta();
+            busUpdate(dt);
+            // theObject.position.copy(pos);
+            theObject.rotation.z = angle;
+            agent.update(dt);
+
+            requestAnimationFrame(animate);
+            render();
+        }
+
+        function render() {
+            renderer.render(scene, camera);
+        }
+
+    </script>
+</body>
+
+</html>
